@@ -1,0 +1,336 @@
+﻿
+<style type="text/css">
+    body {
+        background-color: #dddddd;
+        font-family: Arial;
+        margin: 0px;
+        padding: 0px;
+    }
+
+    button {
+        font-size: 1.5em;
+    }
+
+    #content-wrapper {
+        width: 100%;
+    }
+
+    #content {
+        width: 100%;
+        margin: 0px auto;
+        background-color: #ffffff;
+        border: 1px solid #808080;
+        /*margin: 2em;*/
+        position: relative;
+    }
+
+    #dsst-frame {
+        padding: 2em;
+        /*border: 1px solid #dddddd;*/
+    }
+
+        #dsst-frame div {
+            margin: 1em 0em;
+        }
+
+    #dsst-middle {
+        height: 14em;
+    }
+
+    #dsst-keys {
+        border-collapse: collapse;
+        font-size: 2em;
+        margin: 0px auto;
+        width: 100%;
+    }
+
+    #dsst-keys, td {
+        border: 1px solid #dddddd;
+        padding: .4em;
+        text-align: center;
+    }
+
+    #dsst-question {
+        font-size: 4em;
+        border-collapse: collapse;
+        margin: 0px auto;
+    }
+
+        #dsst-question tr {
+            height: 2em;
+        }
+
+        #dsst-question td {
+            width: 1.5em;
+        }
+
+    #dsst-buttons {
+        float: left;
+        font-size: 2em;
+        margin: 0px auto;
+        width: 30em;
+    }
+
+        #dsst-buttons a {
+            border: 1px solid black;
+            padding: 1em;
+            background-color: #b0b0b0;
+            text-decoration: none;
+            color: #000000;
+            margin-right: .5em;
+            width: .82em;
+        }
+        #dsst-buttons a:last-child {
+            margin-right: 0px !important;
+        }
+
+    .clear {
+        clear: both;
+    }
+
+    #score {
+        position: absolute;
+        right: 0px;
+        top: 0px;
+        font-size: 1.5em;
+    }
+</style>
+
+<div id="content-wrapper">
+    <div id="content">
+        <div id="dsst-frame">
+            <div>
+                <table id="dsst-keys"></table>
+            </div>
+            <div id="dsst-middle">
+                <table id="dsst-question">
+                    <tr>
+                        <td>
+                            <span id="currentNumber"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span id="currentIcon"></span></td>
+                    </tr>
+                </table>
+            </div>
+            <div>
+                <div id="dsst-buttons">
+
+                </div>
+            </div>
+            <div class="clear"></div>
+            <button id="startTest" onclick="startTest()">Start Test</button>
+        </div>
+    </div>
+</div>
+<script src="Scripts/jquery-1.10.2.min.js"></script>
+<script type="text/javascript">
+    var icons = [
+        'fa-ambulance',
+        'fa-anchor',
+        'fa-android',
+        'fa-angellist',
+        'fa-angle-double-down',
+        'fa-angle-double-left',
+        'fa-angle-double-right',
+        'fa-angle-double-up',
+        'fa-angle-down',
+        'fa-angle-left',
+        'fa-angle-right',
+        'fa-angle-u'
+    ];
+
+    var numCorrect;
+    var numIncorrect;
+    var currentNumberValue;
+    var timeBetweenQuestionsMilliseconds = 500;
+    var testTimeoutMilliseconds = 2 * 60 * 1000; //2 minutes
+
+    $(function () {
+        init();
+    });
+
+    /*****************************
+    * Initialization
+    *****************************/
+    function init() {
+        showDSSTQuestion(false);
+        setKeys();
+    }
+
+    function setKeys() {
+        var tbl = $('#dsst-keys');
+        var topRow = createControl('tr');
+        var bottomRow = createControl('tr');
+        var buttonDiv = $('#dsst-buttons');
+        var buttons = new Array(9);
+
+        for (var i = 1; i <= 9; i++) {
+            var icon = icons[i - 1];
+            $(topRow).append(createKeyCell(i, ''));
+            var iconCell = createKeyCell('', '');
+            $(iconCell).append(createControl('i', { "class": 'fa ' + icon }))
+            $(bottomRow).append(iconCell);
+
+            var j = 0;
+            var saved = false;
+            while (!saved) {
+                var pos = getRandomNumberBase(0, 9);
+                if (buttons[pos] == undefined) {
+                    buttons[pos] = createSelectButton(i, icon);
+                    saved = true;
+                }
+                j++;
+                if (j > 1000) {
+                    saved = true;
+                }
+            }
+        }
+
+        //randomize the buttons
+        for (var i = 0; i < buttons.length; i++) {
+            buttonDiv.append(buttons[i]);
+        }
+
+        $(tbl).append($(topRow));
+        $(tbl).append($(bottomRow));
+    }
+
+    function createKeyCell(txt, css) {
+        var numCell = createControl('td', { "class": css });
+        $(numCell).html(txt);
+        return numCell;
+    }
+
+    function createSelectButton(val, icon) {
+        var btn = createControl('a', {
+            href: "#",
+            "key-val": val,
+            "class": 'fa ' + icon,
+            onclick: "buttonHandler(this)"
+        });
+
+        //this didn't work
+        //$(btn).on('tap', function () { buttonHandler(this); })
+
+        return btn;
+    }
+
+    /******************************
+    * Scale Control
+    ******************************/
+    function startTest() {
+        $('#startTest').hide();
+
+        numCorrect = 0;
+        numIncorrect = 0;
+        showCount();
+
+        //kick off the timer
+        getKeyQuestion();
+        startTimer();
+    }
+
+    function startTimer() {
+        setTimeout(completeTest, testTimeoutMilliseconds);
+    }
+
+    function getKeyQuestion() {
+        showDSSTQuestion(false);
+        displayKeyQuestion(getRandomNumber());
+        showDSSTQuestion(true);
+    }
+
+    function displayKeyQuestion(num) {
+        setCurrentNumberValue(num);
+        setCurrentIconValue('');
+    }
+
+    function completeTest() {
+        alert('Test is completed! ' + getCorrect() + ' correct, ' + getInCorrect() + ' incorrect in ' + (testTimeoutMilliseconds/1000) + ' seconds.');
+        $('#startTest').show();
+        showDSSTQuestion(false);
+    }
+
+    function buttonHandler(obj) {
+        var val = $(obj).attr('key-val');
+        var icon = icons[parseInt(val) - 1];
+        setCurrentIconValue(icon);
+        //check for correct
+        incrementCount(val == getCurrentNumberValue());
+        setTimeout(getKeyQuestion, timeBetweenQuestionsMilliseconds);
+    }
+
+    function showDSSTQuestion(show) {
+        if (show) {
+            $('#dsst-question').show();
+        } else {
+            $('#dsst-question').hide();
+        }
+    }
+
+    function getCurrentNumberValue() {
+        return currentNumberValue;
+    }
+
+    function setCurrentNumberValue(val) {
+        currentNumberValue = val;
+        $('#currentNumber').html(val);
+    }
+
+    function setCurrentIconValue(val) {
+        $('#currentIcon').removeClass();
+        if (val.length > 0) {
+            $('#currentIcon').addClass('fa ' + val);
+        }
+    }
+
+    function incrementCount(correct) {
+        if (correct) {
+            numCorrect++;
+        } else {
+            numIncorrect++;
+        }
+
+        showCount();
+    }
+
+    function showCount() {
+        $('#correct').html(getCorrect());
+        $('#incorrect').html(getInCorrect());
+    }
+
+    function getCorrect() {
+        return numCorrect;
+    }
+
+    function getInCorrect() {
+        return numIncorrect;
+    }
+
+    /**************************
+    * UI Control
+    **************************/
+    function createControl(type, options) {
+        var ctrl = document.createElement(type);
+        for (var p in options) {
+            ctrl.setAttribute(p, options[p]);
+        }
+        return ctrl;
+    }
+
+    function getRandomNumber() {
+        var lastNumber = getCurrentNumberValue();
+        var currentNumber = getCurrentNumberValue();
+        while (lastNumber == currentNumber) {
+            currentNumber = getRandomNumberBase(1, 9);//Math.floor(Math.random() * 9) + 1
+        }
+        return currentNumber;
+    }
+
+    function getRandomNumberBase(min, max) {
+        return Math.floor(Math.random() * max) + min;
+    }
+</script>
+
